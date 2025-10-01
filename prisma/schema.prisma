@@ -1,15 +1,109 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
-  output   = "../generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+// City model based on Open-Meteo Geocoding API response
+model City {
+  id             Int      @id @default(autoincrement())
+  openMeteoId    Int      @unique // Open-Meteo unique location ID
+  name           String   // Location name
+  latitude       Float    // WGS84 coordinates
+  longitude      Float
+  elevation      Float?   // Elevation above mean sea level
+  timezone       String   // Timezone (e.g., "Europe/Berlin")
+  featureCode    String?  // GeoNames feature code (e.g., "PPLC")
+  countryCode    String   // ISO-3166-1 alpha2 (e.g., "DE")
+  country        String   // Country name
+  population     Int?     // Number of inhabitants
+  admin1         String?  // First administrative level (state/province)
+  admin2         String?  // Second administrative level
+  admin3         String?  // Third administrative level
+  admin4         String?  // Fourth administrative level
+  postcodes      String[] // Array of postcodes for this location
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  weatherForecasts WeatherForecast[]
+  activityRankings ActivityRanking[]
+
+  @@map("cities")
+  @@index([name])
+  @@index([countryCode])
+  @@index([latitude, longitude])
+}
+
+// Weather forecast model based on Open-Meteo Weather API daily parameters
+model WeatherForecast {
+  id               Int      @id @default(autoincrement())
+  cityId           Int
+  date             DateTime @db.Date // Forecast date
+  
+  // Temperature data (°C)
+  maxTemp          Float    // temperature_2m_max
+  minTemp          Float    // temperature_2m_min
+  
+  // Weather conditions
+  weatherCode      Int      // WMO weather code
+  
+  // Precipitation data (mm)
+  precipitation    Float    // precipitation_sum
+  rainSum          Float?   // rain_sum  
+  showersSum       Float?   // showers_sum
+  snowfallSum      Float?   // snowfall_sum (cm)
+  
+  // Wind data
+  windSpeed        Float    // windspeed_10m_max (km/h)
+  windDirection    Float?   // winddirection_10m_dominant (degrees)
+  windGusts        Float?   // windgusts_10m_max (km/h)
+  
+  // Additional weather metrics
+  uvIndex          Float?   // uv_index_max
+  sunriseSunset    String?  // sunrise/sunset times (JSON)
+  sunshineDuration Int?     // sunshine_duration (seconds)
+  
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  city City @relation(fields: [cityId], references: [id], onDelete: Cascade)
+
+  @@unique([cityId, date])
+  @@map("weather_forecasts")
+  @@index([date])
+  @@index([weatherCode])
+}
+
+// Activity ranking for travel planning based on weather conditions
+model ActivityRanking {
+  id           Int      @id @default(autoincrement())
+  cityId       Int
+  date         DateTime @db.Date
+  
+  // Activity scores (0-100)
+  skiingScore       Float @default(0)
+  surfingScore      Float @default(0)
+  indoorScore       Float @default(0)
+  outdoorScore      Float @default(0)
+  
+  // Reasoning for recommendations
+  reasoning    Json     // JSON object with explanations
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  city City @relation(fields: [cityId], references: [id], onDelete: Cascade)
+
+  @@unique([cityId, date])
+  @@map("activity_rankings")
+  @@index([date])
 }
